@@ -153,8 +153,7 @@ Distribution targets: winget, Homebrew, Flathub, F-Droid, App Store and Google P
 
 ## 14. Technology stack
 
-Rust core and daemon (QUIC via `quinn` or `iroh`; the choice is fixed at M1 by a spike that must meet the LAN
-throughput and resume tests), SQLite for history, Tauri 2 for the UI, UniFFI to expose the core to Swift/Kotlin,
+Rust core and daemon (QUIC via `iroh`, decided by the M1.1 spike and ADR-0005), SQLite for history, Tauri 2 for the UI, UniFFI to expose the core to Swift/Kotlin,
 native shell extensions per OS.
 
 ## 15. Milestones
