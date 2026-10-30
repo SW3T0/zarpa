@@ -1,6 +1,6 @@
-# 5. Build the transport on quinn
+# 5. Build the transport on iroh
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-30
 
 ## Context
@@ -12,7 +12,8 @@ identity, discovery hooks, hole punching and relays) and ran both through the sa
 
 ## Decision
 
-Build the transport on **quinn + rustls**. **This is a close call, and the owner may override it** (see Rule 2 below).
+Build the transport on **iroh**. The project owner chose this over the outcome of a literal reading of the pre-registered
+rules, which would have selected quinn. The evidence and the override are recorded here.
 
 | Rule | quinn | iroh | Outcome |
 |---|---|---|---|
@@ -22,39 +23,42 @@ Build the transport on **quinn + rustls**. **This is a close call, and the owner
 | 2b. Local discovery works with no relay | yes (via `mdns-sd`) | yes (via `iroh-mdns-address-lookup`) | satisfied, with caveats: single host, machine online, relay and lookup disabled |
 | 2c. Every license permissive per the rule's list (MIT, Apache-2.0, BSD, ISC, Unicode, Zlib, CC0, MPL-2.0) | no additions to `deny.toml` | needs `Zlib`, `BSD-2-Clause`, `CDLA-Permissive-2.0` | **not satisfied literally**: `CDLA-Permissive-2.0` is not in the list |
 
-Rule 2 requires all three sub-conditions for `iroh` to be preferred. 2c fails on one license: `CDLA-Permissive-2.0`, which
-covers only the `webpki-roots` CA bundle pulled in by iroh's relay client, a component Zarpa would not use on the LAN. It
-is a permissive data license, so reading the rule by its intent rather than its literal list would flip the outcome to
-iroh. The rule as written yields quinn, so quinn is proposed. Whether the intent reading should win is the owner's call.
+Rule 2c failed on one license only: `CDLA-Permissive-2.0`, which covers the `webpki-roots` CA bundle pulled in by iroh's
+relay client. It is a permissive data license, and the rule's intent is to exclude restrictive licenses, so the owner
+accepted it. The deciding factor is Phase 2 (remote devices with WireGuard-like reach): iroh already provides hole
+punching, relays and key-based dialing, which is most of that phase.
 
 ## Consequences
 
-**What we get with quinn**
-- A far smaller dependency tree (89 vs 250 unique crates), a smaller binary (about 3.3 MB vs 11.2 MB for the discovery
-  example), no new licenses, and a measured throughput about 7 % higher.
-- The public protocol is plain QUIC with mutual TLS using self-signed Ed25519 certificates and the ALPN `zarpa/0`, so a
-  third party can implement it with any QUIC stack. This matches the goal of a public, implementable specification.
-- Full control of identity checks: both verifiers pin the peer's Ed25519 key and still verify the handshake signature.
+**What we get with iroh**
+- Identity by public key, NAT traversal and relay fallback ready for Phase 2, with the `Transport` trait and conformance
+  suite as the safety net.
+- A stable 1.x API (iroh 1.4.1) maintained by a dedicated team.
+- Throughput within 8 % of quinn in the spike (and the numbers are harness-bound; see below).
 
 **What we take on**
-- Zarpa must build discovery on its own (`mdns-sd` worked in the spike), including choosing the right interface
-  addresses on multi-adapter machines (the spike resolved a Hyper-V address instead of the LAN address).
-- **Phase 2 (remote devices) is a real cost:** NAT traversal, hole punching and relays are not provided by quinn. iroh
-  provides them. If remote transfer becomes the priority, reconsider iroh at the start of Phase 2; the `Transport` trait
-  and the conformance suite exist precisely so that this swap is a bounded piece of work.
-- The custom TLS verifier is the security-critical core of the adapter; it is code Zarpa now owns and must keep reviewed.
+- A larger dependency tree (250 vs 89 unique crates) and binary (about 11.2 MB vs 3.3 MB for the discovery example).
+- The public protocol rides on iroh's QUIC conventions (its own `noq` QUIC layer and key-pinned handshake). A third party
+  needs a compatible stack to talk to Zarpa. The protocol draft says so (`docs/protocol/README.md`, section 1).
+- Local-network discovery is not built into iroh 1.x: it needs the separate `iroh-mdns-address-lookup` crate.
+- The relay client and HTTP stack (`iroh-relay`, `reqwest`) compile in even when the relay is disabled at runtime.
+- Zarpa depends on n0's release cadence and defaults. The spike endpoint disables everything that contacts n0 services:
+  `presets::Minimal`, `RelayMode::Disabled`, no address lookup, minimal net-report. Production code must keep relay and
+  DNS/pkarr usage an explicit, user-visible choice (a privacy requirement, not only a technical one).
 
 **Follow-ups**
-- Keep the conformance suite and the spike in `spikes/` as the regression test for any future transport.
-- The throughput numbers are likely harness-bound (results, section 9); profile and re-measure in M2 before claiming
-  the link is saturated.
-- No `deny.toml` change is needed for quinn. If iroh is chosen instead, add `Zlib`, `BSD-2-Clause` and
-  `CDLA-Permissive-2.0`, and check whether `ring` needs a `licenses.clarify` entry.
+- When iroh enters the root workspace (M1.2 onwards), add `Zlib`, `BSD-2-Clause` and `CDLA-Permissive-2.0` to
+  `deny.toml`, and check whether `ring` needs a `licenses.clarify` entry. Run `cargo deny check` for real.
+- M1.3 must choose the right interface addresses: on a multi-adapter machine the spike's quinn/mdns-sd example resolved a
+  Hyper-V address; iroh's example advertised Tailscale, Hyper-V and Ethernet addresses together.
+- Android needs the NDK for `ring`'s build script (both stacks); iOS is unchecked.
+- The throughput numbers are likely harness-bound (results, section 9); profile and re-measure in M2 before claiming the
+  link is saturated.
+- Keep the spike in `spikes/`: if iroh stops fitting, the conformance suite makes a swap to quinn a bounded piece of work.
 
 ## Alternatives considered
 
-- **iroh 1.4.1:** equal conformance, 6-8 % slower, a much larger tree, and discovery in a separate crate, but it ships
-  hole punching and relays, which is most of Phase 2. Its QUIC layer is n0's own `noq`, and a Zarpa protocol on iroh would
-  ride iroh's conventions, so third-party clients would need a compatible stack. Strongest argument for it: Phase 2
-  effort. It is the main alternative if the owner overrides rule 2c.
-- **Direct decision without a spike:** rejected; the spec required measured evidence.
+- **quinn + rustls:** passes every test, about 7 % faster in the spike, a far smaller tree (89 crates), no new licenses,
+  and a protocol that any QUIC stack can implement. It was the outcome of the literal rule. Rejected because Phase 2 would
+  require building discovery, hole punching and relays ourselves.
+- **Decision without a spike:** rejected; the spec required measured evidence.

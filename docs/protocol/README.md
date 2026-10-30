@@ -8,9 +8,11 @@ semantically (fields and meaning), not byte layouts.
 
 ## 1. Transport
 
-- Peers communicate over QUIC with TLS 1.3. The ALPN identifier is `zarpa/0`.
-- Each peer presents a self-signed certificate bound to its Ed25519 identity key. Peers MUST authenticate
-  each other by public key against their trust list and MUST NOT rely on certificate authorities.
+- Peers communicate over QUIC with TLS 1.3, provided by iroh 1.x (ADR-0005). The ALPN identifier is `zarpa/0`.
+- Each peer authenticates with its Ed25519 identity key (the iroh endpoint ID). A peer MUST check the key
+  authenticated in the handshake against its trust list and MUST close connections from keys it does not trust.
+  Peers MUST NOT rely on certificate authorities.
+- A third-party implementation needs a QUIC stack compatible with iroh's handshake conventions (ADR-0005).
 - A connection carries one control stream plus one data stream per active block lane.
 
 ## 2. Identity
