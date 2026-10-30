@@ -15,4 +15,5 @@ tokio = { version = "1", features = ["full"] }
 x509-parser = "0.18.1"
 
 [dev-dependencies]
+mdns-sd = "0.21.6"
 tokio = { version = "1", features = ["full"] }
