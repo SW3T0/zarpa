@@ -1,0 +1,11 @@
+[package]
+name = "zarpa-core"
+description = "Core library of Zarpa: protocol, crypto and transfer engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
