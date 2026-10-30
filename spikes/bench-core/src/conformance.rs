@@ -26,7 +26,12 @@ pub async fn connected<X: Transport>() -> (X, X, Arc<X::Conn>, Arc<X::Conn>) {
     let (a, b) = pair::<X>().await;
     let to_b = b.addr();
     let (ca, cb) = tokio::join!(a.connect(&to_b), b.accept());
-    (a, b, Arc::new(ca.expect("connect")), Arc::new(cb.expect("accept")))
+    (
+        a,
+        b,
+        Arc::new(ca.expect("connect")),
+        Arc::new(cb.expect("accept")),
+    )
 }
 
 pub async fn authenticated_roundtrip<X: Transport>() {
@@ -44,9 +49,15 @@ pub async fn authenticated_roundtrip<X: Transport>() {
             tx.shutdown().await.expect("shutdown");
         })
     };
-    let (_tx, mut rx) = timeout(T, cb.accept_stream()).await.expect("timeout").expect("accept stream");
+    let (_tx, mut rx) = timeout(T, cb.accept_stream())
+        .await
+        .expect("timeout")
+        .expect("accept stream");
     let mut got = Vec::new();
-    timeout(T, rx.read_to_end(&mut got)).await.expect("timeout").expect("read");
+    timeout(T, rx.read_to_end(&mut got))
+        .await
+        .expect("timeout")
+        .expect("read");
     writer.await.unwrap();
     assert_eq!(got, expected);
 }
@@ -58,9 +69,14 @@ pub async fn rejects_untrusted_peer<X: Transport>() {
         .await
         .expect("bind intruder");
     let to_b = b.addr();
-    let (accepted, _dialed) =
-        tokio::join!(timeout(SHORT, b.accept()), timeout(SHORT, intruder.connect(&to_b)));
-    assert!(!matches!(accepted, Ok(Ok(_))), "server accepted an untrusted peer");
+    let (accepted, _dialed) = tokio::join!(
+        timeout(SHORT, b.accept()),
+        timeout(SHORT, intruder.connect(&to_b))
+    );
+    assert!(
+        !matches!(accepted, Ok(Ok(_))),
+        "server accepted an untrusted peer"
+    );
 }
 
 /// A client must refuse to talk to a server whose key it does not trust.
@@ -70,9 +86,14 @@ pub async fn rejects_unknown_server<X: Transport>() {
         .expect("bind server");
     let client = X::bind(test_secret(7), vec![]).await.expect("bind client"); // trusts nobody
     let to_server = server.addr();
-    let (_accepted, dialed) =
-        tokio::join!(timeout(SHORT, server.accept()), timeout(SHORT, client.connect(&to_server)));
-    assert!(!matches!(dialed, Ok(Ok(_))), "client connected to an untrusted server");
+    let (_accepted, dialed) = tokio::join!(
+        timeout(SHORT, server.accept()),
+        timeout(SHORT, client.connect(&to_server))
+    );
+    assert!(
+        !matches!(dialed, Ok(Ok(_))),
+        "client connected to an untrusted server"
+    );
 }
 
 pub async fn transfer_verified<X: Transport>() {
@@ -83,8 +104,15 @@ pub async fn transfer_verified<X: Transport>() {
         let cb = Arc::clone(&cb);
         async move { recv(&cb, None).await }
     });
-    let sent = timeout(T, send(&ca, &data, &manifest, 4, None)).await.expect("timeout").expect("send");
-    let set = timeout(T, rx).await.expect("timeout").unwrap().expect("recv");
+    let sent = timeout(T, send(&ca, &data, &manifest, 4, None))
+        .await
+        .expect("timeout")
+        .expect("send");
+    let set = timeout(T, rx)
+        .await
+        .expect("timeout")
+        .unwrap()
+        .expect("recv");
     assert_eq!(sent, manifest.block_count());
     assert!(set.is_complete());
 }
@@ -100,8 +128,15 @@ pub async fn resume_after_drop<X: Transport>() {
         let cb = Arc::clone(&cb);
         async move { recv(&cb, None).await }
     });
-    let first = timeout(T, send(&ca, &data, &manifest, 2, Some(3))).await.expect("timeout").expect("send 1");
-    let partial = timeout(T, rx).await.expect("timeout").unwrap().expect("recv 1");
+    let first = timeout(T, send(&ca, &data, &manifest, 2, Some(3)))
+        .await
+        .expect("timeout")
+        .expect("send 1");
+    let partial = timeout(T, rx)
+        .await
+        .expect("timeout")
+        .unwrap()
+        .expect("recv 1");
     assert_eq!(first, 3);
     assert_eq!(partial.verified_count(), 3);
     assert!(!partial.is_complete());
@@ -112,13 +147,23 @@ pub async fn resume_after_drop<X: Transport>() {
     // Reconnect and resume with the receiver's prior state.
     let to_b = b.addr();
     let (ca2, cb2) = tokio::join!(a.connect(&to_b), b.accept());
-    let (ca2, cb2) = (Arc::new(ca2.expect("reconnect")), Arc::new(cb2.expect("re-accept")));
+    let (ca2, cb2) = (
+        Arc::new(ca2.expect("reconnect")),
+        Arc::new(cb2.expect("re-accept")),
+    );
     let rx2 = tokio::spawn({
         let cb2 = Arc::clone(&cb2);
         async move { recv(&cb2, Some(partial)).await }
     });
-    let second = timeout(T, send(&ca2, &data, &manifest, 2, None)).await.expect("timeout").expect("send 2");
-    let done = timeout(T, rx2).await.expect("timeout").unwrap().expect("recv 2");
+    let second = timeout(T, send(&ca2, &data, &manifest, 2, None))
+        .await
+        .expect("timeout")
+        .expect("send 2");
+    let done = timeout(T, rx2)
+        .await
+        .expect("timeout")
+        .unwrap()
+        .expect("recv 2");
     assert_eq!(second, 5, "only the 5 missing blocks must be re-sent");
     assert!(done.is_complete());
 }

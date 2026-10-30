@@ -55,7 +55,10 @@ pub struct VerifiedSet {
 impl VerifiedSet {
     pub fn new(manifest: Manifest) -> Self {
         let n = manifest.block_count();
-        Self { manifest, have: vec![false; n] }
+        Self {
+            manifest,
+            have: vec![false; n],
+        }
     }
 
     pub fn manifest(&self) -> &Manifest {
@@ -64,7 +67,11 @@ impl VerifiedSet {
 
     /// Verifies `data` against the manifest hash and marks the block as present.
     pub fn accept(&mut self, index: usize, data: &[u8]) -> Result<(), BlockError> {
-        let expected = self.manifest.hashes.get(index).ok_or(BlockError::OutOfRange)?;
+        let expected = self
+            .manifest
+            .hashes
+            .get(index)
+            .ok_or(BlockError::OutOfRange)?;
         if hash_block(data) != *expected {
             return Err(BlockError::HashMismatch);
         }

@@ -12,7 +12,9 @@
 
 use bench_core::transport::{Connection, PeerAddr, PeerKey, Transport, TransportError};
 use iroh::endpoint::{presets, RecvStream, SendStream, VarInt};
-use iroh::{Endpoint, EndpointAddr, NetReportConfig, PublicKey, RelayMode, SecretKey, TransportAddr};
+use iroh::{
+    Endpoint, EndpointAddr, NetReportConfig, PublicKey, RelayMode, SecretKey, TransportAddr,
+};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
@@ -71,11 +73,18 @@ impl Transport for IrohTransport {
             .map_err(other)?;
         let key = peer_key(&endpoint.id());
         debug_assert_eq!(key, bench_core::transport::public_key(&secret));
-        Ok(Self { endpoint, key, trusted: Arc::new(trusted) })
+        Ok(Self {
+            endpoint,
+            key,
+            trusted: Arc::new(trusted),
+        })
     }
 
     fn addr(&self) -> PeerAddr {
-        PeerAddr { key: self.key, direct: self.direct_addrs() }
+        PeerAddr {
+            key: self.key,
+            direct: self.direct_addrs(),
+        }
     }
 
     async fn accept(&self) -> Result<IrohConn, TransportError> {
@@ -99,7 +108,8 @@ impl Transport for IrohTransport {
         if !self.trusted.contains(&to.key) {
             return Err(TransportError::UntrustedPeer);
         }
-        let id = PublicKey::from_bytes(&to.key.0).map_err(|e| TransportError::Connect(e.to_string()))?;
+        let id =
+            PublicKey::from_bytes(&to.key.0).map_err(|e| TransportError::Connect(e.to_string()))?;
         let addr = EndpointAddr::from_parts(id, to.direct.iter().copied().map(TransportAddr::Ip));
         let conn = self
             .endpoint
@@ -161,32 +171,55 @@ mod tests {
     /// `accept` survives an untrusted (but iroh-authenticated) client and returns the next trusted one.
     #[tokio::test(flavor = "multi_thread")]
     async fn accept_keeps_waiting_after_untrusted_client() {
-        let server = Arc::new(IrohTransport::bind(test_secret(2), vec![public_key(&test_secret(1))]).await.unwrap());
+        let server = Arc::new(
+            IrohTransport::bind(test_secret(2), vec![public_key(&test_secret(1))])
+                .await
+                .unwrap(),
+        );
         let to = server.addr();
         let acc = tokio::spawn({
             let server = Arc::clone(&server);
             async move { server.accept().await.map(|c| c.remote_key()) }
         });
-        let intruder = IrohTransport::bind(test_secret(9), vec![public_key(&test_secret(2))]).await.unwrap();
+        let intruder = IrohTransport::bind(test_secret(9), vec![public_key(&test_secret(2))])
+            .await
+            .unwrap();
         let _ = intruder.connect(&to).await;
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        assert!(!acc.is_finished(), "accept returned after an untrusted handshake");
-        let friend = IrohTransport::bind(test_secret(1), vec![public_key(&test_secret(2))]).await.unwrap();
+        assert!(
+            !acc.is_finished(),
+            "accept returned after an untrusted handshake"
+        );
+        let friend = IrohTransport::bind(test_secret(1), vec![public_key(&test_secret(2))])
+            .await
+            .unwrap();
         let _c = friend.connect(&to).await.expect("trusted connect");
-        let got = tokio::time::timeout(std::time::Duration::from_secs(5), acc).await.unwrap().unwrap().unwrap();
+        let got = tokio::time::timeout(std::time::Duration::from_secs(5), acc)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(got, public_key(&test_secret(1)));
     }
 
     /// Dialing a key that is not the one listening on the address fails (iroh's handshake check).
     #[tokio::test(flavor = "multi_thread")]
     async fn connect_to_wrong_key_fails() {
-        let server = IrohTransport::bind(test_secret(2), vec![public_key(&test_secret(7))]).await.unwrap();
-        let client = IrohTransport::bind(test_secret(7), vec![public_key(&test_secret(5))]).await.unwrap();
+        let server = IrohTransport::bind(test_secret(2), vec![public_key(&test_secret(7))])
+            .await
+            .unwrap();
+        let client = IrohTransport::bind(test_secret(7), vec![public_key(&test_secret(5))])
+            .await
+            .unwrap();
         let mut to = server.addr();
         to.key = public_key(&test_secret(5));
         let accept = tokio::spawn(async move { server.accept().await.map(|_| ()) });
-        let res = tokio::time::timeout(std::time::Duration::from_secs(15), client.connect(&to)).await;
-        assert!(!matches!(res, Ok(Ok(_))), "connected to a server with the wrong key");
+        let res =
+            tokio::time::timeout(std::time::Duration::from_secs(15), client.connect(&to)).await;
+        assert!(
+            !matches!(res, Ok(Ok(_))),
+            "connected to a server with the wrong key"
+        );
         accept.abort();
     }
 }

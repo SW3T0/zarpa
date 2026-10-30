@@ -21,7 +21,9 @@ async fn throughput<X: Transport>(mib: usize, streams: u32) -> f64 {
         let cb = Arc::clone(&cb);
         async move { recv(&cb, None).await }
     });
-    send(&ca, &data, &manifest, streams, None).await.expect("send");
+    send(&ca, &data, &manifest, streams, None)
+        .await
+        .expect("send");
     let set = rx.await.expect("join").expect("recv");
     assert!(set.is_complete(), "transfer incomplete");
     mib as f64 / start.elapsed().as_secs_f64()
@@ -37,7 +39,13 @@ async fn row<X: Transport>(mib: usize, streams: u32) {
     for _ in 0..3 {
         runs.push(throughput::<X>(mib, streams).await);
     }
-    println!("| {} | {} | {} | {:.0} |", X::name(), mib, streams, median(runs));
+    println!(
+        "| {} | {} | {} | {:.0} |",
+        X::name(),
+        mib,
+        streams,
+        median(runs)
+    );
 }
 
 #[tokio::main(flavor = "multi_thread")]

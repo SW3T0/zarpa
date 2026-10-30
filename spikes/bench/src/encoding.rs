@@ -21,11 +21,17 @@ pub enum Control {
 }
 
 fn manifest() -> WireManifest {
-    WireManifest { size: 1 << 30, block_size: 4 << 20, hashes: ByteBuf::from(vec![0xAB; 32 * 256]) }
+    WireManifest {
+        size: 1 << 30,
+        block_size: 4 << 20,
+        hashes: ByteBuf::from(vec![0xAB; 32 * 256]),
+    }
 }
 
 fn control() -> Control {
-    Control::Want { indices: (0..64).collect() }
+    Control::Want {
+        indices: (0..64).collect(),
+    }
 }
 
 fn measure<T, E, D>(name: &str, label: &str, value: &T, enc: E, dec: D)
@@ -47,7 +53,10 @@ where
         std::hint::black_box(dec(&bytes));
     }
     let dec_us = t.elapsed().as_secs_f64() * 1e6 / N as f64;
-    println!("| {label} | {name} | {} | {enc_us:.2} | {dec_us:.2} |", bytes.len());
+    println!(
+        "| {label} | {name} | {} | {enc_us:.2} | {dec_us:.2} |",
+        bytes.len()
+    );
 }
 
 fn run_for<T>(label: &str, value: T)

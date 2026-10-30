@@ -30,7 +30,11 @@ pub enum TransportError {
 
 /// Derives the public key from a 32-byte Ed25519 secret seed.
 pub fn public_key(secret: &[u8; 32]) -> PeerKey {
-    PeerKey(ed25519_dalek::SigningKey::from_bytes(secret).verifying_key().to_bytes())
+    PeerKey(
+        ed25519_dalek::SigningKey::from_bytes(secret)
+            .verifying_key()
+            .to_bytes(),
+    )
 }
 
 /// A fixed, obviously-fake secret for tests and benchmarks.
@@ -59,7 +63,10 @@ pub trait Transport: Sized + Send + Sync + 'static {
 
     fn accept(&self) -> impl Future<Output = Result<Self::Conn, TransportError>> + Send;
 
-    fn connect(&self, to: &PeerAddr) -> impl Future<Output = Result<Self::Conn, TransportError>> + Send;
+    fn connect(
+        &self,
+        to: &PeerAddr,
+    ) -> impl Future<Output = Result<Self::Conn, TransportError>> + Send;
 }
 
 /// An established, mutually authenticated connection with bidirectional streams.
@@ -71,9 +78,13 @@ pub trait Connection: Send + Sync + 'static {
 
     fn remote_key(&self) -> PeerKey;
 
-    fn open_stream(&self) -> impl Future<Output = Result<(Self::Send, Self::Recv), TransportError>> + Send;
+    fn open_stream(
+        &self,
+    ) -> impl Future<Output = Result<(Self::Send, Self::Recv), TransportError>> + Send;
 
-    fn accept_stream(&self) -> impl Future<Output = Result<(Self::Send, Self::Recv), TransportError>> + Send;
+    fn accept_stream(
+        &self,
+    ) -> impl Future<Output = Result<(Self::Send, Self::Recv), TransportError>> + Send;
 
     /// Closes the connection immediately (used to simulate a dropped link).
     fn close(&self);

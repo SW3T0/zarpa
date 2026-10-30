@@ -4,7 +4,8 @@
 use crate::manifest::{Manifest, VerifiedSet};
 use crate::transport::{Connection, TransportError};
 use crate::wire::{
-    read_block, read_offer, read_want, write_block, write_offer, write_want, WireError, STREAM_MAGIC,
+    read_block, read_offer, read_want, write_block, write_offer, write_want, WireError,
+    STREAM_MAGIC,
 };
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -24,8 +25,12 @@ pub async fn send<C: Connection>(
     limit: Option<usize>,
 ) -> Result<usize, TransportError> {
     let (mut ctl_tx, mut ctl_rx) = conn.open_stream().await?;
-    write_offer(&mut ctl_tx, manifest, streams).await.map_err(wire_err)?;
-    let mut wanted = read_want(&mut ctl_rx, manifest.block_count()).await.map_err(wire_err)?;
+    write_offer(&mut ctl_tx, manifest, streams)
+        .await
+        .map_err(wire_err)?;
+    let mut wanted = read_want(&mut ctl_rx, manifest.block_count())
+        .await
+        .map_err(wire_err)?;
     if let Some(l) = limit {
         wanted.truncate(l);
     }
@@ -57,7 +62,8 @@ pub async fn send<C: Connection>(
         }));
     }
     for t in tasks {
-        t.await.map_err(|e| TransportError::Other(e.to_string()))??;
+        t.await
+            .map_err(|e| TransportError::Other(e.to_string()))??;
     }
 
     // Wait for the receiver's final ack so closing the connection cannot discard in-flight data.
@@ -78,7 +84,9 @@ pub async fn recv<C: Connection>(
         Some(p) if p.manifest() == &manifest => p,
         _ => VerifiedSet::new(manifest.clone()),
     };
-    write_want(&mut ctl_tx, &set.missing()).await.map_err(wire_err)?;
+    write_want(&mut ctl_tx, &set.missing())
+        .await
+        .map_err(wire_err)?;
 
     let shared = Arc::new(Mutex::new(set));
     let mut tasks = Vec::new();

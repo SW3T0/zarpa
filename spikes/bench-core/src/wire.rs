@@ -51,10 +51,20 @@ pub async fn read_offer<R: AsyncRead + Unpin>(r: &mut R) -> Result<(Manifest, u3
         r.read_exact(&mut h).await?;
         hashes.push(h);
     }
-    Ok((Manifest { size, block_size, hashes }, streams))
+    Ok((
+        Manifest {
+            size,
+            block_size,
+            hashes,
+        },
+        streams,
+    ))
 }
 
-pub async fn write_want<W: AsyncWrite + Unpin>(w: &mut W, indices: &[u32]) -> Result<(), WireError> {
+pub async fn write_want<W: AsyncWrite + Unpin>(
+    w: &mut W,
+    indices: &[u32],
+) -> Result<(), WireError> {
     w.write_u32_le(indices.len() as u32).await?;
     for i in indices {
         w.write_u32_le(*i).await?;
@@ -126,17 +136,31 @@ mod tests {
     #[tokio::test]
     async fn offer_rejects_inconsistent_block_count() {
         let (mut a, mut b) = duplex(1 << 16);
-        let bad = Manifest { size: 100, block_size: 4, hashes: vec![[0u8; 32]; 2] };
+        let bad = Manifest {
+            size: 100,
+            block_size: 4,
+            hashes: vec![[0u8; 32]; 2],
+        };
         write_offer(&mut a, &bad, 1).await.unwrap();
-        assert!(matches!(read_offer(&mut b).await, Err(WireError::Invalid(_))));
+        assert!(matches!(
+            read_offer(&mut b).await,
+            Err(WireError::Invalid(_))
+        ));
     }
 
     #[tokio::test]
     async fn offer_rejects_zero_block_size() {
         let (mut a, mut b) = duplex(1 << 16);
-        let bad = Manifest { size: 0, block_size: 0, hashes: vec![] };
+        let bad = Manifest {
+            size: 0,
+            block_size: 0,
+            hashes: vec![],
+        };
         write_offer(&mut a, &bad, 1).await.unwrap();
-        assert!(matches!(read_offer(&mut b).await, Err(WireError::Invalid(_))));
+        assert!(matches!(
+            read_offer(&mut b).await,
+            Err(WireError::Invalid(_))
+        ));
     }
 
     #[tokio::test]
@@ -145,7 +169,10 @@ mod tests {
         write_want(&mut a, &[1, 5, 9]).await.unwrap();
         assert_eq!(read_want(&mut b, 100).await.unwrap(), vec![1, 5, 9]);
         write_want(&mut a, &[1, 2, 3]).await.unwrap();
-        assert!(matches!(read_want(&mut b, 2).await, Err(WireError::Invalid(_))));
+        assert!(matches!(
+            read_want(&mut b, 2).await,
+            Err(WireError::Invalid(_))
+        ));
     }
 
     #[tokio::test]
@@ -153,7 +180,10 @@ mod tests {
         let (mut a, mut b) = duplex(1 << 16);
         write_block(&mut a, 7, b"hello").await.unwrap();
         drop(a);
-        assert_eq!(read_block(&mut b, 1024).await.unwrap(), Some((7, b"hello".to_vec())));
+        assert_eq!(
+            read_block(&mut b, 1024).await.unwrap(),
+            Some((7, b"hello".to_vec()))
+        );
         assert_eq!(read_block(&mut b, 1024).await.unwrap(), None);
     }
 
@@ -161,6 +191,9 @@ mod tests {
     async fn block_rejects_oversized_frame() {
         let (mut a, mut b) = duplex(1 << 16);
         write_block(&mut a, 0, &[0u8; 100]).await.unwrap();
-        assert!(matches!(read_block(&mut b, 10).await, Err(WireError::Invalid(_))));
+        assert!(matches!(
+            read_block(&mut b, 10).await,
+            Err(WireError::Invalid(_))
+        ));
     }
 }
