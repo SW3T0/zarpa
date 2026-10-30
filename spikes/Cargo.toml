@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["bench-core", "adapter-quinn"]
+members = ["bench-core", "adapter-quinn", "adapter-iroh"]
 
 [workspace.package]
 version = "0.0.0"
