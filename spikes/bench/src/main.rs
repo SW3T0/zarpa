@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //! M1.1 benchmarks. Usage: `bench [--mib N]` (throughput) or `bench --encoding`.
 
+mod encoding;
+
 use bench_core::block::{gen_bytes, BLOCK_SIZE};
 use bench_core::conformance::connected;
 use bench_core::manifest::Manifest;
@@ -41,6 +43,10 @@ async fn row<X: Transport>(mib: usize, streams: u32) {
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--encoding") {
+        encoding::run();
+        return;
+    }
     let mib = args
         .iter()
         .position(|a| a == "--mib")
