@@ -3,7 +3,7 @@
 Status: **draft**, not stable. Wire compatibility is not guaranteed before 1.0.
 The key words MUST, SHOULD and MAY are used as in RFC 2119.
 
-Message encoding is selected by ADR-0004 during milestone M1; this draft therefore specifies messages
+Message encoding is defined by ADR-0004 (status: proposed); this draft specifies messages
 semantically (fields and meaning), not byte layouts.
 
 ## 1. Transport
