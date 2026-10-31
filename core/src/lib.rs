@@ -5,7 +5,7 @@ pub mod error;
 pub mod identity;
 
 pub use error::{Error, Result};
-pub use identity::DeviceId;
+pub use identity::{DeviceId, Identity};
 
 /// Returns the version of the `zarpa-core` crate.
 pub fn version() -> &'static str {

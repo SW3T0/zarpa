@@ -4,7 +4,10 @@
 use std::fmt;
 use std::str::FromStr;
 
+use ed25519_dalek::SigningKey;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
 
@@ -66,6 +69,49 @@ impl TryFrom<String> for DeviceId {
 
     fn try_from(s: String) -> Result<Self> {
         s.parse()
+    }
+}
+
+/// This device's identity: the Ed25519 secret seed and the public key derived from it.
+///
+/// The secret is wiped from memory on drop and never appears in `Debug` output.
+pub struct Identity {
+    secret: Zeroizing<[u8; 32]>,
+    id: DeviceId,
+}
+
+impl Identity {
+    /// Generates a fresh identity from the operating system's random number generator.
+    pub fn generate() -> Self {
+        let key = SigningKey::generate(&mut OsRng);
+        Self::from_secret(key.to_bytes())
+    }
+
+    /// Rebuilds an identity from its 32-byte secret seed.
+    pub fn from_secret(secret: [u8; 32]) -> Self {
+        let id = DeviceId(SigningKey::from_bytes(&secret).verifying_key().to_bytes());
+        Self {
+            secret: Zeroizing::new(secret),
+            id,
+        }
+    }
+
+    /// The device ID (public key).
+    pub fn id(&self) -> DeviceId {
+        self.id
+    }
+
+    /// The secret seed, for handing to a transport. Never log or persist it elsewhere.
+    pub fn secret(&self) -> &[u8; 32] {
+        &self.secret
+    }
+}
+
+impl fmt::Debug for Identity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Identity")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -148,6 +194,34 @@ mod tests {
     #[test]
     fn debug_shows_only_the_short_form() {
         assert_eq!(format!("{:?}", sample()), "DeviceId(00010203)");
+    }
+
+    #[test]
+    fn from_secret_matches_rfc_8032_test_vector_1() {
+        // RFC 8032 section 7.1, TEST 1. The secret is parsed through DeviceId only to reuse
+        // the hex decoder.
+        let secret: DeviceId = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+            .parse()
+            .unwrap();
+        let identity = Identity::from_secret(*secret.as_bytes());
+        assert_eq!(
+            identity.id().to_string(),
+            "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+        assert_eq!(identity.secret(), secret.as_bytes());
+    }
+
+    #[test]
+    fn generate_gives_distinct_identities() {
+        assert_ne!(Identity::generate().id(), Identity::generate().id());
+    }
+
+    #[test]
+    fn debug_never_shows_the_secret() {
+        let identity = Identity::from_secret([7u8; 32]);
+        let text = format!("{identity:?}");
+        assert!(text.contains(&identity.id().short()));
+        assert!(!text.contains("0707"));
     }
 
     #[test]
