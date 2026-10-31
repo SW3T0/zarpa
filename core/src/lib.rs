@@ -2,10 +2,13 @@
 //! Zarpa core library.
 
 pub mod error;
+mod fsutil;
 pub mod identity;
+pub mod secret_store;
 
 pub use error::{Error, Result};
 pub use identity::{DeviceId, Identity};
+pub use secret_store::{FileSecretStore, MemorySecretStore, SecretStore};
 
 /// Returns the version of the `zarpa-core` crate.
 pub fn version() -> &'static str {
