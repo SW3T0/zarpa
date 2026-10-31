@@ -17,7 +17,9 @@ semantically (fields and meaning), not byte layouts.
 
 ## 2. Identity
 
-- A device identity is an Ed25519 key pair. The **device ID** is the public key.
+- A device identity is an Ed25519 key pair. The **device ID** is the public key. In text form
+  (API, CLI, files) it is written as 64 lowercase hexadecimal characters; the first 8 are used
+  as a short display form only and MUST NOT be used to authenticate a peer.
 - The display name is a human label, MUST NOT be used for authentication and MAY be changed at any time.
 
 ## 3. Discovery
