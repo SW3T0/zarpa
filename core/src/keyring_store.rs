@@ -41,6 +41,15 @@ impl SecretStore for OsKeyringStore {
 mod tests {
     use super::*;
 
+    /// Deletes the test credential when dropped, even if an assertion failed first.
+    struct Cleanup<'a>(&'a keyring::Entry);
+
+    impl Drop for Cleanup<'_> {
+        fn drop(&mut self) {
+            let _ = self.0.delete_credential();
+        }
+    }
+
     /// Needs a real OS keyring, so it is skipped by default:
     /// `cargo test -p zarpa-core --features os-keyring -- --ignored`.
     #[test]
@@ -48,6 +57,7 @@ mod tests {
     fn round_trips_through_the_os_keyring() {
         let account = format!("test-{}", std::process::id());
         let store = OsKeyringStore::new("zarpa-core-tests", &account).unwrap();
+        let _cleanup = Cleanup(&store.entry);
         assert!(store.load().unwrap().is_none());
         store.save(&[5u8; 32]).unwrap();
         let got = store.load().unwrap().unwrap();
