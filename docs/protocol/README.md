@@ -3,19 +3,23 @@
 Status: **draft**, not stable. Wire compatibility is not guaranteed before 1.0.
 The key words MUST, SHOULD and MAY are used as in RFC 2119.
 
-Message encoding is selected by ADR-0004 during milestone M1; this draft therefore specifies messages
+Message encoding is defined by ADR-0004 (CBOR, accepted); this draft specifies messages
 semantically (fields and meaning), not byte layouts.
 
 ## 1. Transport
 
-- Peers communicate over QUIC with TLS 1.3. The ALPN identifier is `zarpa/0`.
-- Each peer presents a self-signed certificate bound to its Ed25519 identity key. Peers MUST authenticate
-  each other by public key against their trust list and MUST NOT rely on certificate authorities.
+- Peers communicate over QUIC with TLS 1.3, provided by iroh 1.x (ADR-0005). The ALPN identifier is `zarpa/0`.
+- Each peer authenticates with its Ed25519 identity key (the iroh endpoint ID). A peer MUST check the key
+  authenticated in the handshake against its trust list and MUST close connections from keys it does not trust.
+  Peers MUST NOT rely on certificate authorities.
+- A third-party implementation needs a QUIC stack compatible with iroh's handshake conventions (ADR-0005).
 - A connection carries one control stream plus one data stream per active block lane.
 
 ## 2. Identity
 
-- A device identity is an Ed25519 key pair. The **device ID** is the public key.
+- A device identity is an Ed25519 key pair. The **device ID** is the public key. In text form
+  (API, CLI, files) it is written as 64 lowercase hexadecimal characters; the first 8 are used
+  as a short display form only and MUST NOT be used to authenticate a peer.
 - The display name is a human label, MUST NOT be used for authentication and MAY be changed at any time.
 
 ## 3. Discovery
