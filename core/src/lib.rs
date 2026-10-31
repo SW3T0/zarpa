@@ -2,8 +2,10 @@
 //! Zarpa core library.
 
 pub mod error;
+pub mod identity;
 
 pub use error::{Error, Result};
+pub use identity::DeviceId;
 
 /// Returns the version of the `zarpa-core` crate.
 pub fn version() -> &'static str {
