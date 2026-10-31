@@ -80,26 +80,26 @@ impl TrustStore {
         self.devices.keys().copied().collect()
     }
 
-    /// Trusts `id`. Returns `true` if it was newly added; if it was already trusted only its
-    /// name is updated and the original `paired_at` is kept. `paired_at` is seconds since the
-    /// Unix epoch, supplied by the caller so the store stays deterministic.
+    /// Trusts `id`. Returns `true` if it was newly added. A device that is already trusted is
+    /// left untouched (it keeps its name and `paired_at`, so a name chosen with
+    /// [`TrustStore::rename`] is never overwritten by what the peer announces). `paired_at` is
+    /// seconds since the Unix epoch, supplied by the caller so the store stays deterministic.
     pub fn trust(&mut self, id: DeviceId, name: &str, paired_at: u64) -> Result<bool> {
+        if self.is_trusted(&id) {
+            return Ok(false);
+        }
         let name = sanitize_name(name, &id);
-        let is_new = !self.is_trusted(&id);
-        self.commit(|devices| match devices.get_mut(&id) {
-            Some(existing) => existing.name = name,
-            None => {
-                devices.insert(
+        self.commit(|devices| {
+            devices.insert(
+                id,
+                TrustedDevice {
                     id,
-                    TrustedDevice {
-                        id,
-                        name,
-                        paired_at,
-                    },
-                );
-            }
+                    name,
+                    paired_at,
+                },
+            );
         })?;
-        Ok(is_new)
+        Ok(true)
     }
 
     /// Renames a trusted device. Returns `false` if `id` is not trusted.
@@ -236,13 +236,14 @@ mod tests {
     }
 
     #[test]
-    fn trusting_again_updates_the_name_and_keeps_the_pairing_time() {
+    fn trusting_again_keeps_the_name_and_the_pairing_time() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = TrustStore::open(path_in(&dir)).unwrap();
         assert!(store.trust(id(1), "A", 100).unwrap());
-        assert!(!store.trust(id(1), "B", 200).unwrap());
+        store.rename(&id(1), "Mine").unwrap();
+        assert!(!store.trust(id(1), "Peer's choice", 200).unwrap());
         let device = store.get(&id(1)).unwrap();
-        assert_eq!(device.name, "B");
+        assert_eq!(device.name, "Mine");
         assert_eq!(device.paired_at, 100);
     }
 
@@ -375,16 +376,6 @@ mod tests {
         std::fs::remove_dir_all(dir.path().join("sub")).unwrap();
         std::fs::write(dir.path().join("sub"), "in the way").unwrap();
         store
-    }
-
-    #[test]
-    fn a_failed_save_rolls_back_a_name_update() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut store = store_with_broken_disk(&dir);
-        assert!(store.trust(id(1), "Renamed", 200).is_err());
-        let device = store.get(&id(1)).unwrap();
-        assert_eq!(device.name, "Laptop");
-        assert_eq!(device.paired_at, 100);
     }
 
     #[test]
