@@ -19,6 +19,11 @@ jobs:
 
   dco:
     name: DCO sign-off
+    # release-please commits are machine-made and carry no sign-off. Only PRs from
+    # branches of this repository are exempt, never from forks.
+    if: >-
+      ${{ !(startsWith(github.head_ref, 'release-please--') &&
+      github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
