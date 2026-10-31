@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Zarpa core library.
 
+pub mod error;
+
+pub use error::{Error, Result};
+
 /// Returns the version of the `zarpa-core` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
