@@ -13,7 +13,7 @@ pub enum Error {
     /// A state file exists but cannot be understood.
     #[error("state file is corrupt: {0}")]
     Corrupt(String),
-    /// A state file was written by a newer, incompatible version (the found version is carried).
+    /// A state file was written in a version this build does not support (the found version is carried).
     #[error("state file has unsupported version {0}")]
     UnsupportedVersion(u32),
     /// The operating-system secret store failed.

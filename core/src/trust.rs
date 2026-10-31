@@ -39,8 +39,9 @@ struct Versioned {
 
 /// The persistent list of trusted devices.
 ///
-/// The daemon is the only writer. Every change is written to disk atomically before it takes
-/// effect in memory; if the write fails the change is undone and the error returned.
+/// The daemon is the only writer. Every change is applied in memory, then the whole list is
+/// written to disk atomically; if the write fails the in-memory change is rolled back and the
+/// error returned, so memory and disk stay consistent.
 pub struct TrustStore {
     path: PathBuf,
     devices: BTreeMap<DeviceId, TrustedDevice>,
@@ -169,16 +170,35 @@ fn parse(bytes: &[u8]) -> Result<BTreeMap<DeviceId, TrustedDevice>> {
     Ok(devices)
 }
 
-/// Peer-supplied names are untrusted: strip control characters, trim, cap the length, and
-/// fall back to a name derived from the ID when nothing is left.
+/// Peer-supplied names are untrusted: strip control and invisible characters, cap the length,
+/// then trim (so the result never ends in whitespace), and fall back to a name derived from
+/// the ID when nothing is left.
 fn sanitize_name(name: &str, id: &DeviceId) -> String {
-    let cleaned: String = name.chars().filter(|c| !c.is_control()).collect();
-    let cleaned: String = cleaned.trim().chars().take(MAX_NAME_CHARS).collect();
+    let cleaned: String = name
+        .chars()
+        .filter(|c| !c.is_control() && !is_invisible_format(*c))
+        .take(MAX_NAME_CHARS)
+        .collect();
+    let cleaned = cleaned.trim();
     if cleaned.is_empty() {
         format!("device-{}", id.short())
     } else {
-        cleaned
+        cleaned.to_string()
     }
+}
+
+/// Bidirectional controls, zero-width and other invisible format characters, and the Unicode
+/// line/paragraph separators: they can spoof or hide text when a name is displayed.
+fn is_invisible_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200B}'..='\u{200F}'
+            | '\u{2028}'..='\u{202E}'
+            | '\u{2060}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{061C}'
+            | '\u{FEFF}'
+    )
 }
 
 #[cfg(test)]
@@ -277,6 +297,31 @@ mod tests {
     }
 
     #[test]
+    fn names_drop_bidi_and_invisible_characters() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = TrustStore::open(path_in(&dir)).unwrap();
+        store.trust(id(1), "\u{202E}potpaL", 1).unwrap();
+        assert_eq!(store.get(&id(1)).unwrap().name, "potpaL");
+        store
+            .trust(id(2), "a\u{2028}b\u{200B}c\u{FEFF}d\u{2066}e", 1)
+            .unwrap();
+        assert_eq!(store.get(&id(2)).unwrap().name, "abcde");
+        store.trust(id(3), "\u{200B}\u{202E}", 1).unwrap();
+        assert_eq!(store.get(&id(3)).unwrap().name, "device-03030303");
+    }
+
+    #[test]
+    fn truncated_names_never_end_in_whitespace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = TrustStore::open(path_in(&dir)).unwrap();
+        store
+            .trust(id(1), &format!("{} y", "x".repeat(63)), 1)
+            .unwrap();
+        let name = &store.get(&id(1)).unwrap().name;
+        assert_eq!(name, &"x".repeat(63));
+    }
+
+    #[test]
     fn open_rejects_garbage() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(path_in(&dir), "not json").unwrap();
@@ -320,5 +365,41 @@ mod tests {
         std::fs::write(dir.path().join("sub"), "in the way").unwrap();
         assert!(store.trust(id(1), "Laptop", 1).is_err());
         assert!(!store.is_trusted(&id(1)));
+    }
+
+    /// Opens a store whose first device is saved, then makes every later save fail.
+    fn store_with_broken_disk(dir: &tempfile::TempDir) -> TrustStore {
+        let path = dir.path().join("sub").join("trusted.json");
+        let mut store = TrustStore::open(path).unwrap();
+        store.trust(id(1), "Laptop", 100).unwrap();
+        std::fs::remove_dir_all(dir.path().join("sub")).unwrap();
+        std::fs::write(dir.path().join("sub"), "in the way").unwrap();
+        store
+    }
+
+    #[test]
+    fn a_failed_save_rolls_back_a_name_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = store_with_broken_disk(&dir);
+        assert!(store.trust(id(1), "Renamed", 200).is_err());
+        let device = store.get(&id(1)).unwrap();
+        assert_eq!(device.name, "Laptop");
+        assert_eq!(device.paired_at, 100);
+    }
+
+    #[test]
+    fn a_failed_save_rolls_back_a_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = store_with_broken_disk(&dir);
+        assert!(store.rename(&id(1), "Renamed").is_err());
+        assert_eq!(store.get(&id(1)).unwrap().name, "Laptop");
+    }
+
+    #[test]
+    fn a_failed_save_rolls_back_a_removal() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = store_with_broken_disk(&dir);
+        assert!(store.remove(&id(1)).is_err());
+        assert!(store.is_trusted(&id(1)));
     }
 }
