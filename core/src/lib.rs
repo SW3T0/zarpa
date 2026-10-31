@@ -5,10 +5,12 @@ pub mod error;
 mod fsutil;
 pub mod identity;
 pub mod secret_store;
+pub mod trust;
 
 pub use error::{Error, Result};
 pub use identity::{DeviceId, Identity};
 pub use secret_store::{FileSecretStore, MemorySecretStore, SecretStore};
+pub use trust::{TrustStore, TrustedDevice};
 
 /// Returns the version of the `zarpa-core` crate.
 pub fn version() -> &'static str {
