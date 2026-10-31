@@ -14,7 +14,8 @@ trust list is small and must be easy to inspect and back up.
 - The device secret (32-byte Ed25519 seed) goes through a `SecretStore` trait. The operating
   system's secure store is preferred (`OsKeyringStore`, Cargo feature `os-keyring`); an
   owner-only file (`FileSecretStore`, mode 0600 on Unix) is the fallback for systems without a
-  keyring. Mobile platforms will provide their own store (M5).
+  keyring. On Windows the file is owner-only only while it lives under the user's profile directory
+  (inherited ACL), so the daemon must keep its state there. Mobile platforms will provide their own store (M5).
 - A stored secret of the wrong length is an error and is never replaced automatically.
 - The trust list is a JSON file (`{"version":1,"devices":[...]}`) written atomically (temp file
   and rename), loaded fully in memory, with a single writer (the daemon).

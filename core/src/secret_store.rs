@@ -45,7 +45,7 @@ impl SecretStore for MemorySecretStore {
 /// A store that keeps the secret in a file readable only by its owner.
 ///
 /// This is the fallback for systems without a usable OS keyring. The file is written
-/// atomically with mode 0600 on Unix; on Windows it relies on the user-profile ACL.
+/// atomically with mode 0600 on Unix. On Windows it relies on the user-profile ACL, so the file\n/// must live under the user's profile directory for it to be owner-only.
 pub struct FileSecretStore {
     path: PathBuf,
 }
