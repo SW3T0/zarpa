@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
+use crate::secret_store::SecretStore;
 
 /// The identity of a device: its Ed25519 public key.
 ///
@@ -96,6 +97,27 @@ impl Identity {
         }
     }
 
+    /// Loads the identity kept in `store`, creating and saving a new one on first run.
+    ///
+    /// A stored value of the wrong length is reported as [`Error::CorruptSecret`] and left
+    /// untouched: replacing it would silently change this device's ID on every paired peer.
+    pub fn load_or_create(store: &dyn SecretStore) -> Result<Self> {
+        match store.load()? {
+            Some(bytes) => {
+                let secret: [u8; 32] = bytes
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::CorruptSecret(bytes.len()))?;
+                Ok(Self::from_secret(secret))
+            }
+            None => {
+                let identity = Self::generate();
+                store.save(identity.secret())?;
+                Ok(identity)
+            }
+        }
+    }
+
     /// The device ID (public key).
     pub fn id(&self) -> DeviceId {
         self.id
@@ -147,6 +169,7 @@ fn nibble(c: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::secret_store::{MemorySecretStore, SecretStore};
 
     const HEX: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
@@ -230,5 +253,26 @@ mod tests {
         assert_eq!(json, format!("\"{HEX}\""));
         assert_eq!(serde_json::from_str::<DeviceId>(&json).unwrap(), sample());
         assert!(serde_json::from_str::<DeviceId>("\"nope\"").is_err());
+    }
+
+    #[test]
+    fn load_or_create_persists_the_first_identity() {
+        let store = MemorySecretStore::default();
+        let first = Identity::load_or_create(&store).unwrap();
+        let second = Identity::load_or_create(&store).unwrap();
+        assert_eq!(first.id(), second.id());
+        assert_eq!(first.secret(), second.secret());
+    }
+
+    #[test]
+    fn load_or_create_refuses_a_corrupt_secret_instead_of_replacing_it() {
+        let store = MemorySecretStore::default();
+        store.save(&[1, 2, 3]).unwrap();
+        assert!(matches!(
+            Identity::load_or_create(&store),
+            Err(Error::CorruptSecret(3))
+        ));
+        // The corrupt value is still there: nothing was overwritten.
+        assert_eq!(store.load().unwrap().unwrap().len(), 3);
     }
 }
