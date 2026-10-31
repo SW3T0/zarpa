@@ -1,0 +1,19 @@
+[package]
+name = "adapter-quinn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bench-core = { path = "../bench-core" }
+# ring provider everywhere: builds on Windows/MSVC with no extra tools (aws-lc-rs would need cmake/NASM).
+quinn = { version = "0.11.12", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
+rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "ring"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "logging"] }
+tokio = { version = "1", features = ["full"] }
+x509-parser = "0.18.1"
+
+[dev-dependencies]
+mdns-sd = "0.21.6"
+tokio = { version = "1", features = ["full"] }
