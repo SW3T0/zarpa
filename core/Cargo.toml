@@ -21,3 +21,16 @@ zeroize = "1"
 
 [dev-dependencies]
 tempfile = "3"
+
+[features]
+# The operating system's secure store (Credential Manager, Keychain, Secret Service).
+os-keyring = ["dep:keyring"]
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", optional = true, default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", optional = true, default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", optional = true, default-features = false, features = ["sync-secret-service"] }
