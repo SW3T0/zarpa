@@ -243,7 +243,7 @@ mod tests {
     fn debug_never_shows_the_secret() {
         let identity = Identity::from_secret([7u8; 32]);
         let text = format!("{identity:?}");
-        assert!(text.contains(&identity.id().short()));
+        assert_eq!(text, format!("Identity {{ id: {:?}, .. }}", identity.id()));
         assert!(!text.contains("0707"));
     }
 
